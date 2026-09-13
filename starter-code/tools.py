@@ -22,9 +22,20 @@ def search_product_catalog(category: str, max_price: int = 999999999999) -> List
         Danh sách sản phẩm phù hợp điều kiện.
     """
     catalog_file = os.path.join(RAW_DATA_DIR, "product_catalog.json")
-    # TODO: Kiểm tra file tồn tại, đọc JSON, lọc sản phẩm
-    # Gợi ý: Lọc theo p["category"] == category AND p["price_vnd"] <= max_price
-    return []
+    if not os.path.exists(catalog_file):
+        return [{"error": "Product catalog file not found."}]
+
+    with open(catalog_file, "r", encoding="utf-8") as f:
+        products = json.load(f)
+
+    # Lọc sản phẩm theo category và max_price
+    results = [
+        p for p in products
+        if p.get("category", "").lower() == category.lower()
+        and p.get("price_vnd", float("inf")) <= max_price
+    ]
+    return results
+
 
 
 # ---------------------------------------------------------------------------
@@ -49,9 +60,43 @@ def submit_support_ticket(
         Thông tin ticket vừa tạo bao gồm ticket_id, status.
     """
     tickets_file = os.path.join(RAW_DATA_DIR, "support_tickets.json")
-    # TODO: Load existing tickets, generate new ticket_id, append new ticket, save file
-    # Gợi ý: ticket_id = f"TK-{today}-{seq:03d}" với today = datetime.now().strftime("%Y%m%d")
-    return {"ticket_id": "TODO", "status": "TODO"}
+
+    # Load existing tickets
+    existing_tickets = []
+    if os.path.exists(tickets_file):
+        with open(tickets_file, "r", encoding="utf-8") as f:
+            try:
+                existing_tickets = json.load(f)
+            except json.JSONDecodeError:
+                existing_tickets = []
+
+    # Generate ticket ID
+    today = datetime.now().strftime("%Y%m%d")
+    seq = len(existing_tickets) + 1
+    ticket_id = f"TK-{today}-{seq:03d}"
+
+    # Create & save new ticket
+    new_ticket = {
+        "ticket_id": ticket_id,
+        "customer_name": customer_name,
+        "issue_description": issue_description,
+        "priority": priority.lower(),
+        "status": "open",
+        "created_at": datetime.now().isoformat() + "+07:00",
+        "category": "general"
+    }
+    existing_tickets.append(new_ticket)
+
+    with open(tickets_file, "w", encoding="utf-8") as f:
+        json.dump(existing_tickets, f, indent=2, ensure_ascii=False)
+
+    return {
+        "ticket_id": ticket_id,
+        "customer_name": customer_name,
+        "priority": priority.lower(),
+        "status": "open",
+        "message": f"Ticket {ticket_id} đã được tạo thành công."
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +105,50 @@ def submit_support_ticket(
 # ---------------------------------------------------------------------------
 
 TOOL_DEFINITIONS = [
-    # TODO: Thêm schema cho "search_product_catalog"
-    # TODO: Thêm schema cho "submit_support_ticket"
+    {
+    "name": "search_product_catalog",
+    "description": "Search products in catalog by category and max price.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "category": {
+                "type": "string",
+                "enum": ["xe_dien", "du_lich", "bat_dong_san"],
+                "description": "Category to search in"
+            },
+            "max_price": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum price (VND)"
+            }
+        },
+        "required": ["category"]
+    }
+},
+    {
+    "name": "submit_support_ticket",
+    "description": "Create a support ticket for customer issues.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "customer_name": {
+                "type": "string",
+                "description": "Customer's full name"
+            },
+            "issue_description": {
+                "type": "string",
+                "description": "Description of the issue"
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["low", "medium", "high"],
+                "default": "medium",
+                "description": "Ticket priority"
+            }
+        },
+        "required": ["customer_name", "issue_description"]
+    }
+}
 ]
 
 
